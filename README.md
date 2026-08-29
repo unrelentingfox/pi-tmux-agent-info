@@ -69,6 +69,19 @@ pi.events.emit("tmux-agent-status:v1", {
 });
 ```
 
+## Hermes memory activity
+
+When `pi-hermes-memory` is loaded, this extension reports its public tool
+activity as `working`: `memory_add`, `memory_replace`, `memory_remove`,
+`memory_search`, `session_search`, and `skill_manage`. A failed Hermes tool
+keeps a `failed` status until the next Hermes tool or agent run starts.
+
+This cannot observe Hermes private background review, session flush, or
+auto-consolidation. Hermes uses direct model calls and does not emit a public
+lifecycle event for them. Upstream Hermes can provide complete status coverage
+by emitting the `tmux-agent-status:v1` protocol described above with its own
+`ext:` source name.
+
 ## Other harnesses
 
 Other harnesses do not need Pi code. Set the same pane-local options directly:

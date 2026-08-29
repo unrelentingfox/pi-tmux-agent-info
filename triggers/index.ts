@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { piAskUserTrigger } from "./pi-ask-user.ts";
+import { piHermesMemoryTrigger } from "./pi-hermes-memory.ts";
 import { piPermissionSystemTrigger } from "./pi-permission-system.ts";
 import { piTrigger } from "./pi.ts";
 import { protocolTrigger } from "./protocol.ts";
@@ -9,6 +10,7 @@ export const STATUS_TRIGGERS: readonly StatusTrigger[] = [
 	piTrigger,
 	piPermissionSystemTrigger,
 	piAskUserTrigger,
+	piHermesMemoryTrigger,
 	protocolTrigger,
 ];
 
