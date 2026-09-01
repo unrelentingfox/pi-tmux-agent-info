@@ -15,7 +15,12 @@ test("registers every trigger and disposes in reverse order", () => {
 		},
 	});
 	const { contributions } = contributionSpy();
-	const dispose = registerStatusTriggers({} as ExtensionAPI, contributions, [trigger("one"), trigger("two")]);
+	const dispose = registerStatusTriggers(
+		{} as ExtensionAPI,
+		contributions,
+		() => new Set(),
+		[trigger("one"), trigger("two")],
+	);
 	dispose();
 	assert.deepEqual(order, ["register:one", "register:two", "dispose:two", "dispose:one"]);
 });

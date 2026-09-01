@@ -5,7 +5,6 @@ export interface StatusContributions {
 	upsert(source: string, id: string, status: AgentStatus): void;
 	remove(source: string, id: string): void;
 	clearSource(source: string): void;
-	clearStatuses(statuses: readonly AgentStatus[]): void;
 }
 
 export interface StatusTrigger {

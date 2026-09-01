@@ -2,11 +2,10 @@ import type { AgentStatus } from "../status.ts";
 import type { StatusContributions } from "./types.ts";
 
 export interface ContributionCall {
-	action: "upsert" | "remove" | "clearSource" | "clearStatuses";
+	action: "upsert" | "remove" | "clearSource";
 	source?: string;
 	id?: string;
 	status?: AgentStatus;
-	statuses?: readonly AgentStatus[];
 }
 
 export function contributionSpy(): { contributions: StatusContributions; calls: ContributionCall[] } {
@@ -17,7 +16,6 @@ export function contributionSpy(): { contributions: StatusContributions; calls: 
 			upsert: (source, id, status) => calls.push({ action: "upsert", source, id, status }),
 			remove: (source, id) => calls.push({ action: "remove", source, id }),
 			clearSource: (source) => calls.push({ action: "clearSource", source }),
-			clearStatuses: (statuses) => calls.push({ action: "clearStatuses", statuses }),
 		},
 	};
 }

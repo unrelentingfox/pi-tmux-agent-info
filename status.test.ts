@@ -42,12 +42,3 @@ test("clears one source without affecting another", () => {
 	store.clearSource("first");
 	assert.equal(store.resolve(), "working");
 });
-
-test("clears sticky terminal statuses when new work starts", () => {
-	const store = new StatusContributionStore();
-	store.upsert({ source: "pi", id: "terminal", status: "done" });
-	store.upsert({ source: "subagent", id: "terminal:one", status: "failed" });
-	store.upsert({ source: "permission", id: "one", status: "waiting" });
-	store.clearStatuses(["done", "failed"]);
-	assert.equal(store.resolve(), "waiting");
-});

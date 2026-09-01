@@ -28,30 +28,33 @@ the parent pane identity or status.
 
 ## Pi status sources
 
-Trigger modules under `triggers/` translate one event family each. To support
-another Pi extension, implement `StatusTrigger` and add it to
-`triggers/index.ts`. Trigger-local source and item IDs stay inside the Pi
-adapter. Only the resolved semantic status reaches tmux.
+The extension consumes only Pi lifecycle events and one generic external
+protocol. Core Pi reports agent work, terminal results, compaction, and native
+UI prompts. A configured tool reports `waiting` from its
+`tool_execution_start` event through the matching `tool_execution_end` event.
 
-```ts
-import type { StatusTrigger } from "./triggers/types.ts";
+Configure tool waits in `~/.pi/agent/tmux-agent-info.json`:
 
-export const deployTrigger: StatusTrigger = {
-  source: "ext:deploy-extension",
-  register(pi, contributions) {
-    const dispose = pi.events.on("deploy:changed", (event: any) => {
-      if (event.active) contributions.upsert("ext:deploy-extension", event.id, "working");
-      else contributions.remove("ext:deploy-extension", event.id);
-    });
-    return () => {
-      dispose?.();
-      contributions.clearSource("ext:deploy-extension");
-    };
-  },
-};
+```json
+{
+  "waitingTools": [
+    "plannotator_submit_plan"
+  ]
+}
 ```
 
-An independently loaded Pi extension can use the generic event protocol. Its
+The file has no built-in tool defaults. A missing file, missing key, or empty
+array disables tool-based waiting. Invalid entries are ignored with a warning.
+The extension reloads this file on every session start, including `/reload`,
+new, resume, and fork.
+
+Tools are keyed by call ID, so concurrent waits remain independent. Native
+`ctx.ui.*` prompts use Pi's `ui_prompt_start` and `ui_prompt_end` events and do
+not need to appear in `waitingTools`. Pi coalesces nested prompts into one outer
+prompt span, so one native prompt contribution covers the full wait.
+
+An independently loaded Pi extension can use the generic event protocol for
+background activity that is not represented by a Pi tool or native prompt. Its
 source must start with `ext:` so it cannot overwrite built-in Pi state:
 
 ```ts
@@ -70,25 +73,6 @@ pi.events.emit("tmux-agent-status:v1", {
   id: "production",
 });
 ```
-
-## Browser plan review
-
-`plannotator_submit_plan` reports `waiting` only while its browser review is
-open, from tool start through the matching tool end. It does not label other
-planning or execution work as waiting. Concurrent reviews remain independent.
-
-## Hermes memory activity
-
-When `pi-hermes-memory` is loaded, this extension reports its public tool
-activity as `working`: `memory_add`, `memory_replace`, `memory_remove`,
-`memory_search`, `session_search`, and `skill_manage`. A failed Hermes tool
-keeps a `failed` status until the next Hermes tool or agent run starts.
-
-This cannot observe Hermes private background review, session flush, or
-auto-consolidation. Hermes uses direct model calls and does not emit a public
-lifecycle event for them. Upstream Hermes can provide complete status coverage
-by emitting the `tmux-agent-status:v1` protocol described above with its own
-`ext:` source name.
 
 ## Other harnesses
 

@@ -43,14 +43,6 @@ export class StatusContributionStore {
 		this.#notifyIfChanged();
 	}
 
-	clearStatuses(statuses: readonly AgentStatus[]): void {
-		const selected = new Set(statuses);
-		for (const [key, contribution] of this.#contributions) {
-			if (selected.has(contribution.status)) this.#contributions.delete(key);
-		}
-		this.#notifyIfChanged();
-	}
-
 	clear(): void {
 		this.#contributions.clear();
 		this.#notifyIfChanged();

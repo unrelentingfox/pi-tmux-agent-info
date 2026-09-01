@@ -1,45 +1,89 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { loadTmuxAgentInfoConfig } from "./config.ts";
 import { StatusContributionStore, type AgentStatus } from "./status.ts";
 import { registerStatusTriggers } from "./triggers/index.ts";
 import type { StatusContributions } from "./triggers/types.ts";
 
 const HARNESS = "pi";
+const OWNER_KEY = Symbol.for("pi-tmux-agent-info:owner");
 
-export default function piTmuxAgentInfo(pi: ExtensionAPI): void {
+export default function piTmuxAgentInfo(
+	pi: ExtensionAPI,
+	loadConfig = loadTmuxAgentInfoConfig,
+): void {
 	if (process.env.PI_SUBAGENT_CHILD === "1") return;
 
 	const tmuxPane = process.env.TMUX_PANE;
+	const owner = Symbol();
 	let currentStatus: AgentStatus | undefined;
+	let sessionMode: ExtensionContext["mode"] | undefined;
+	let publishing = false;
+	let waitingTools: ReadonlySet<string> = new Set();
+	let disposeTriggers: (() => void) | undefined;
 	let pendingSync = Promise.resolve();
+	const isAuthorizedStatusPublisher = (): boolean =>
+		publishing &&
+		isInteractiveParentSession(sessionMode) &&
+		globalThis[OWNER_KEY] === owner;
 	const queueSync = (commands: string[][]): Promise<void> => {
-		pendingSync = pendingSync.then(() => runTmuxCommands(pi, commands));
+		pendingSync = pendingSync.then(() =>
+			isAuthorizedStatusPublisher() ? runTmuxCommands(pi, commands) : undefined,
+		);
 		return pendingSync;
 	};
+	const publishSnapshot = () => {
+		if (!isAuthorizedStatusPublisher()) return Promise.resolve();
+		return queueSync(agentInfoCommands(tmuxPane, HARNESS, pi.getSessionName(), currentStatus));
+	};
 	const store = new StatusContributionStore((status) => {
+		if (!isAuthorizedStatusPublisher()) return;
 		currentStatus = status;
-		void queueSync(statusOptionCommands(tmuxPane, status));
+		void publishSnapshot();
 	});
 	const contributions: StatusContributions = {
-		upsert: (source, id, status) => store.upsert({ source, id, status }),
-		remove: (source, id) => store.remove(source, id),
-		clearSource: (source) => store.clearSource(source),
-		clearStatuses: (statuses) => store.clearStatuses(statuses),
+		upsert: (source, id, status) => {
+			if (isAuthorizedStatusPublisher()) store.upsert({ source, id, status });
+		},
+		remove: (source, id) => {
+			if (isAuthorizedStatusPublisher()) store.remove(source, id);
+		},
+		clearSource: (source) => {
+			if (isAuthorizedStatusPublisher()) store.clearSource(source);
+		},
 	};
-	const disposeTriggers = registerStatusTriggers(pi, contributions);
 
-	pi.on("session_start", async () => {
-		await queueSync(agentInfoCommands(tmuxPane, HARNESS, pi.getSessionName(), currentStatus));
+	pi.on("session_start", async (_event, ctx) => {
+		sessionMode = ctx.mode;
+		if (!isInteractiveParentSession(sessionMode)) return;
+		globalThis[OWNER_KEY] = owner;
+		publishing = true;
+		disposeTriggers ??= registerStatusTriggers(pi, contributions, () => waitingTools);
+		const config = loadConfig();
+		waitingTools = config.waitingTools;
+		for (const warning of config.warnings) ctx.ui.notify(`tmux-agent-info: ${warning}`, "warning");
+		await publishSnapshot();
 	});
 
-	pi.on("session_info_changed", async (event) => {
-		await queueSync(agentInfoCommands(tmuxPane, HARNESS, event.name, currentStatus));
+	pi.on("session_info_changed", async () => {
+		if (isAuthorizedStatusPublisher()) await publishSnapshot();
 	});
 
-	pi.on("session_shutdown", async () => {
-		disposeTriggers();
+	pi.on("session_shutdown", async (event) => {
+		const clearPane = event.reason === "quit" && isAuthorizedStatusPublisher();
+		publishing = false;
+		disposeTriggers?.();
+		disposeTriggers = undefined;
 		store.clear();
-		await queueSync(clearAgentInfoCommands(tmuxPane));
+		await pendingSync;
+		if (clearPane) {
+			await runTmuxCommands(pi, clearAgentInfoCommands(tmuxPane));
+			delete globalThis[OWNER_KEY];
+		}
 	});
+}
+
+export function isInteractiveParentSession(mode: ExtensionContext["mode"] | undefined): boolean {
+	return mode === "tui" && process.env.PI_SUBAGENT_CHILD !== "1";
 }
 
 async function runTmuxCommands(pi: ExtensionAPI, commands: string[][]): Promise<void> {
