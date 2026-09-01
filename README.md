@@ -20,9 +20,11 @@ set -g @agent_icon_idle '🤖'
 
 The renderers use these values when set and retain the same emojis as fallbacks.
 
-Pi owns only its host pane. It publishes `idle` while it waits for input and
-unsets all three options on quit, reload, new, resume, or fork. Subagent
-activity does not affect the parent pane identity or status.
+Pi owns only its host pane. It republishes the full pane snapshot on every
+session start, including startup, reload, new, resume/reopen, and fork. It
+publishes `idle` while it waits for input and unsets all three options on
+shutdown. Child subagents do not register this extension, so they do not affect
+the parent pane identity or status.
 
 ## Pi status sources
 
@@ -68,6 +70,12 @@ pi.events.emit("tmux-agent-status:v1", {
   id: "production",
 });
 ```
+
+## Browser plan review
+
+`plannotator_submit_plan` reports `waiting` only while its browser review is
+open, from tool start through the matching tool end. It does not label other
+planning or execution work as waiting. Concurrent reviews remain independent.
 
 ## Hermes memory activity
 

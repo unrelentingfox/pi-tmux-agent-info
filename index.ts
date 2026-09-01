@@ -3,12 +3,12 @@ import { StatusContributionStore, type AgentStatus } from "./status.ts";
 import { registerStatusTriggers } from "./triggers/index.ts";
 import type { StatusContributions } from "./triggers/types.ts";
 
-const tmuxPane = process.env.TMUX_PANE;
 const HARNESS = "pi";
 
 export default function piTmuxAgentInfo(pi: ExtensionAPI): void {
 	if (process.env.PI_SUBAGENT_CHILD === "1") return;
 
+	const tmuxPane = process.env.TMUX_PANE;
 	let currentStatus: AgentStatus | undefined;
 	let pendingSync = Promise.resolve();
 	const queueSync = (commands: string[][]): Promise<void> => {

@@ -26,6 +26,7 @@ export function eventHandlers(): {
 	on(event: string, handler: (value: any) => void): void;
 	emit(event: string, value: any): void;
 	count(event: string): number;
+	totalCount(): number;
 } {
 	const handlers = new Map<string, Set<(value: any) => void>>();
 	return {
@@ -39,6 +40,9 @@ export function eventHandlers(): {
 		},
 		count(event) {
 			return handlers.get(event)?.size ?? 0;
+		},
+		totalCount() {
+			return [...handlers.values()].reduce((total, subscribers) => total + subscribers.size, 0);
 		},
 	};
 }
