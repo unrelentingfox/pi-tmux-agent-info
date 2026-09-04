@@ -6,6 +6,7 @@ import type { StatusContributions } from "./triggers/types.ts";
 
 const HARNESS = "pi";
 const OWNER_KEY = Symbol.for("pi-tmux-agent-info:owner");
+const extensionOwners = globalThis as typeof globalThis & { [key: symbol]: unknown };
 
 export default function piTmuxAgentInfo(
 	pi: ExtensionAPI,
@@ -24,7 +25,7 @@ export default function piTmuxAgentInfo(
 	const isAuthorizedStatusPublisher = (): boolean =>
 		publishing &&
 		isInteractiveParentSession(sessionMode) &&
-		globalThis[OWNER_KEY] === owner;
+		extensionOwners[OWNER_KEY] === owner;
 	const queueSync = (commands: string[][]): Promise<void> => {
 		pendingSync = pendingSync.then(() =>
 			isAuthorizedStatusPublisher() ? runTmuxCommands(pi, commands) : undefined,
@@ -55,7 +56,7 @@ export default function piTmuxAgentInfo(
 	pi.on("session_start", async (_event, ctx) => {
 		sessionMode = ctx.mode;
 		if (!isInteractiveParentSession(sessionMode)) return;
-		globalThis[OWNER_KEY] = owner;
+		extensionOwners[OWNER_KEY] = owner;
 		publishing = true;
 		disposeTriggers ??= registerStatusTriggers(pi, contributions, () => waitingTools);
 		const config = loadConfig();
@@ -77,7 +78,7 @@ export default function piTmuxAgentInfo(
 		await pendingSync;
 		if (clearPane) {
 			await runTmuxCommands(pi, clearAgentInfoCommands(tmuxPane));
-			delete globalThis[OWNER_KEY];
+			delete extensionOwners[OWNER_KEY];
 		}
 	});
 }

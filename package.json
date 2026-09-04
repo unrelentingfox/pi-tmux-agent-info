@@ -1,8 +1,64 @@
 {
-  "name": "pi-tmux-agent-info",
-  "private": true,
+  "name": "@unrelentingfox/pi-tmux-agent-info",
+  "version": "0.1.0",
+  "description": "Publish Pi agent identity and lifecycle status to pane-local tmux options",
   "type": "module",
+  "license": "MIT",
+  "author": "Dustin Fox",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unrelentingfox/pi-tmux-agent-info.git"
+  },
+  "homepage": "https://github.com/unrelentingfox/pi-tmux-agent-info#readme",
+  "bugs": {
+    "url": "https://github.com/unrelentingfox/pi-tmux-agent-info/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "tmux",
+    "status"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "index.ts",
+    "config.ts",
+    "status.ts",
+    "triggers/index.ts",
+    "triggers/pi.ts",
+    "triggers/protocol.ts",
+    "triggers/types.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
   "scripts": {
-    "test": "node --experimental-strip-types --test"
+    "test": "node --experimental-strip-types --test",
+    "typecheck": "tsc --noEmit",
+    "check:package": "node scripts/check-package.mjs"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@types/node": "22.19.19",
+    "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
