@@ -32,7 +32,8 @@
     "triggers/types.ts",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "RELEASING.md"
   ],
   "pi": {
     "extensions": [

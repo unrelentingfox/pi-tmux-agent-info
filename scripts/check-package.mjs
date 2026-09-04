@@ -5,6 +5,7 @@ const expected = [
   "CHANGELOG.md",
   "LICENSE",
   "README.md",
+  "RELEASING.md",
   "config.ts",
   "index.ts",
   "package.json",

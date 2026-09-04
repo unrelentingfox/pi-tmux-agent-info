@@ -40,9 +40,9 @@ The extension owns only the Pi process's host pane:
 - `@agent_status`: `attention`, `waiting`, `failed`, `working`, `done`, or `idle`
 
 It republishes a complete pane snapshot on startup, reload, new session,
-resume, and fork. It publishes `idle` while Pi waits for input and unsets all
-three options when Pi quits. Reload and session replacement do not clear the
-pane between extension generations.
+resume, and fork. It starts at `idle`, reports `done` after a completed run,
+and unsets all three options when Pi quits. Reload and session replacement do
+not clear the pane between extension generations.
 
 Status icons are global tmux options. A renderer can use these values and
 provide its own fallbacks:
@@ -134,9 +134,10 @@ Continuous integration runs these checks on Node.js 22 and 24. The package
 content check fails if the npm tarball gains an undeclared file. Tests use
 fakes and do not require a live tmux server.
 
-Releases use Semantic Versioning. A GitHub release tagged `vX.Y.Z` must match
-`package.json`; the protected `npm` environment publishes with npm trusted
-publishing and provenance. Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+Releases use Semantic Versioning. The first npm publication is manual; later
+GitHub releases tagged `vX.Y.Z` must match `package.json` and publish through
+the `npm` environment with trusted publishing and provenance. See
+[RELEASING.md](RELEASING.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
