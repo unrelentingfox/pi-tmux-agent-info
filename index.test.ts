@@ -3,24 +3,33 @@ import test from "node:test";
 import piTmuxAgentInfo, {
 	agentInfoCommands,
 	clearAgentInfoCommands,
+	listOwnedActiveRuns,
 	isInteractiveParentSession,
 	statusOptionCommands,
 } from "./index.ts";
 import { eventHandlers } from "./triggers/test-support.ts";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-function extensionPi(sessionName: string | undefined, mode = "tui"): {
+function extensionPi(sessionName: string | undefined, mode = "tui", sessionFile = "/sessions/current.jsonl"): {
 	pi: any;
 	events: ReturnType<typeof eventHandlers>;
 	handlerCount(event?: string): number;
 	run(event: string, payload?: unknown): Promise<void>;
 	tmuxCommands: string[][];
 	warnings: string[];
+	runHandler(event: string, index: number, payload?: unknown): Promise<void>;
 } {
 	const handlers = new Map<string, Array<(value: any, ctx: any) => void | Promise<void>>>();
 	const events = eventHandlers();
 	const tmuxCommands: string[][] = [];
 	const warnings: string[] = [];
-	const ctx = { mode, ui: { notify: (message: string) => warnings.push(message) } };
+	const ctx = {
+		mode,
+		ui: { notify: (message: string) => warnings.push(message) },
+		sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "current-session" },
+	};
 	return {
 		pi: {
 			on(event: string, handler: (value: any, ctx: any) => void | Promise<void>) {
@@ -40,6 +49,9 @@ function extensionPi(sessionName: string | undefined, mode = "tui"): {
 		run: async (event, payload = {}) => {
 			for (const handler of handlers.get(event) ?? []) await handler(payload, ctx);
 		},
+		runHandler: async (event, index, payload = {}) => {
+			await handlers.get(event)?.[index]?.(payload, ctx);
+		},
 		tmuxCommands,
 		warnings,
 	};
@@ -57,6 +69,19 @@ function withEnvironment(value: Record<string, string | undefined>, action: () =
 			else process.env[key] = setting;
 		}
 	});
+}
+
+function writeRun(root: string, id: string, sessionId: string, state: string): void {
+	const runDir = join(root, id);
+	mkdirSync(runDir, { recursive: true });
+	writeFileSync(join(runDir, "status.json"), JSON.stringify({
+		runId: id,
+		sessionId,
+		state,
+		mode: "single",
+		startedAt: Date.now(),
+		steps: [],
+	}));
 }
 
 function assertSnapshot(commands: string[][], sessionName: string | undefined): void {
@@ -267,6 +292,79 @@ test("does not register status triggers again for repeated session starts", asyn
 		await run("session_start");
 		await run("session_start");
 		assert.equal(handlerCount("agent_start"), 1);
+	});
+});
+
+test("shows working for active background runs owned by this idle parent session", async () => {
+	await withEnvironment({ PI_SUBAGENT_CHILD: undefined, TMUX_PANE: "%42" }, async () => {
+		const root = mkdtempSync(join(tmpdir(), "tmux-agent-info-"));
+		const previousRoot = process.env.PI_SUBAGENTS_TEMP_ROOT;
+		process.env.PI_SUBAGENTS_TEMP_ROOT = root;
+		try {
+			const { pi, run, tmuxCommands } = extensionPi("test");
+			piTmuxAgentInfo(pi, () => ({ waitingTools: new Set(), warnings: [] }));
+			const asyncRoot = join(root, "async-subagent-runs");
+			writeRun(asyncRoot, "owned-active", "/sessions/current.jsonl", "running");
+			writeRun(asyncRoot, "other-active", "/sessions/other.jsonl", "running");
+			writeRun(asyncRoot, "unmarked-historical", "/sessions/current.jsonl", "running");
+			mkdirSync(join(asyncRoot, ".active-runs"), { recursive: true });
+			writeFileSync(join(asyncRoot, ".active-runs", "owned-active"), "");
+			writeFileSync(join(asyncRoot, ".active-runs", "other-active"), "");
+			assert.deepEqual(listOwnedActiveRuns("/sessions/current.jsonl"), ["owned-active"]);
+			await run("session_start");
+			await new Promise((resolve) => setImmediate(resolve));
+			assert.equal(tmuxCommands.at(-1)?.at(-1), "working");
+		} finally {
+			if (previousRoot === undefined) delete process.env.PI_SUBAGENTS_TEMP_ROOT;
+			else process.env.PI_SUBAGENTS_TEMP_ROOT = previousRoot;
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
+test("does not infer liveness from a stale active marker", async () => {
+	await withEnvironment({ PI_SUBAGENT_CHILD: undefined, TMUX_PANE: "%42" }, async () => {
+		const root = mkdtempSync(join(tmpdir(), "tmux-agent-info-"));
+		const previousRoot = process.env.PI_SUBAGENTS_TEMP_ROOT;
+		process.env.PI_SUBAGENTS_TEMP_ROOT = root;
+		try {
+			const asyncRoot = join(root, "async-subagent-runs");
+			writeRun(asyncRoot, "dead-process", "/sessions/current.jsonl", "running");
+			mkdirSync(join(asyncRoot, ".active-runs"), { recursive: true });
+			writeFileSync(join(asyncRoot, ".active-runs", "dead-process"), "");
+			assert.deepEqual(listOwnedActiveRuns("/sessions/current.jsonl"), ["dead-process"]);
+		} finally {
+			if (previousRoot === undefined) delete process.env.PI_SUBAGENTS_TEMP_ROOT;
+			else process.env.PI_SUBAGENTS_TEMP_ROOT = previousRoot;
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
+test("removes background working status when runs become terminal", async () => {
+	await withEnvironment({ PI_SUBAGENT_CHILD: undefined, TMUX_PANE: "%42" }, async () => {
+		const root = mkdtempSync(join(tmpdir(), "tmux-agent-info-"));
+		const previousRoot = process.env.PI_SUBAGENTS_TEMP_ROOT;
+		process.env.PI_SUBAGENTS_TEMP_ROOT = root;
+		try {
+			const { pi, runHandler, tmuxCommands } = extensionPi("test");
+			piTmuxAgentInfo(pi, () => ({ waitingTools: new Set(), warnings: [] }));
+			const asyncRoot = join(root, "async-subagent-runs");
+			writeRun(asyncRoot, "finished", "/sessions/current.jsonl", "running");
+			mkdirSync(join(asyncRoot, ".active-runs"), { recursive: true });
+			writeFileSync(join(asyncRoot, ".active-runs", "finished"), "");
+			await runHandler("session_start", 0);
+			await new Promise((resolve) => setImmediate(resolve));
+			assert.equal(tmuxCommands.at(-1)?.at(-1), "working");
+			writeRun(asyncRoot, "finished", "/sessions/current.jsonl", "complete");
+			await runHandler("session_start", 0);
+			await new Promise((resolve) => setImmediate(resolve));
+			assert.equal(tmuxCommands.at(-1)?.at(-1), "idle");
+		} finally {
+			if (previousRoot === undefined) delete process.env.PI_SUBAGENTS_TEMP_ROOT;
+			else process.env.PI_SUBAGENTS_TEMP_ROOT = previousRoot;
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 });
 
