@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StatusTrigger } from "./types.ts";
 
 const SOURCE = "ext:pi-subagents";
@@ -9,19 +10,19 @@ const POLL_INTERVAL_MS = 1000;
 
 export const piSubagentsTrigger: StatusTrigger = {
 	source: SOURCE,
-	register(pi, contributions) {
+	register(pi, contributions, context) {
 		let active = true;
 		let sessionId: string | undefined;
 		let polling: ReturnType<typeof setInterval> | undefined;
 		let syncInProgress = false;
 
-		const syncBackgroundRuns = () => {
+		const syncBackgroundRuns = (removeWhenIdle = true) => {
 			if (!active || !sessionId || syncInProgress) return;
 			syncInProgress = true;
 			try {
 				if (listOwnedActiveRuns(sessionId).length > 0) {
 					contributions.upsert(SOURCE, BACKGROUND_RUNS_ID, "working");
-				} else {
+				} else if (removeWhenIdle) {
 					contributions.remove(SOURCE, BACKGROUND_RUNS_ID);
 				}
 			} finally {
@@ -29,12 +30,15 @@ export const piSubagentsTrigger: StatusTrigger = {
 			}
 		};
 
-		pi.on("session_start", (_event, context) => {
+		const startPolling = (context: ExtensionContext, removeWhenIdle: boolean) => {
 			sessionId = context.sessionManager.getSessionFile() ?? context.sessionManager.getSessionId();
-			syncBackgroundRuns();
+			syncBackgroundRuns(removeWhenIdle);
 			polling ??= setInterval(syncBackgroundRuns, POLL_INTERVAL_MS);
 			polling.unref();
-		});
+		};
+
+		if (context) startPolling(context, false);
+		pi.on("session_start", (_event, nextContext) => startPolling(nextContext, true));
 
 		pi.on("session_shutdown", () => {
 			if (polling) clearInterval(polling);

@@ -7,6 +7,9 @@ import piTmuxAgentInfo, {
 	statusOptionCommands,
 } from "./index.ts";
 import { eventHandlers } from "./triggers/test-support.ts";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function extensionPi(sessionName: string | undefined, mode = "tui", sessionFile = "/sessions/current.jsonl"): {
 	pi: any;
@@ -51,6 +54,23 @@ function extensionPi(sessionName: string | undefined, mode = "tui", sessionFile 
 		tmuxCommands,
 		warnings,
 	};
+}
+
+function writeRun(root: string, id: string, sessionId: string, state: string): void {
+	const runDir = join(root, id);
+	mkdirSync(runDir, { recursive: true });
+	writeFileSync(join(runDir, "status.json"), JSON.stringify({ sessionId, state }));
+}
+
+function withTempRoot(action: (root: string) => void | Promise<void>): Promise<void> {
+	const root = mkdtempSync(join(tmpdir(), "tmux-agent-info-"));
+	const previousRoot = process.env.PI_SUBAGENTS_TEMP_ROOT;
+	process.env.PI_SUBAGENTS_TEMP_ROOT = root;
+	return Promise.resolve(action(root)).finally(() => {
+		if (previousRoot === undefined) delete process.env.PI_SUBAGENTS_TEMP_ROOT;
+		else process.env.PI_SUBAGENTS_TEMP_ROOT = previousRoot;
+		rmSync(root, { recursive: true, force: true });
+	});
 }
 
 function withEnvironment(value: Record<string, string | undefined>, action: () => void | Promise<void>): Promise<void> {
@@ -174,6 +194,27 @@ test("does not register handlers, subscriptions, or tmux commands in child mode"
 		assert.equal(events.totalCount(), 0);
 		await run("session_start");
 		assert.deepEqual(tmuxCommands, []);
+	});
+});
+
+test("initial session start polls pi-subagents status through the root extension", async () => {
+	await withTempRoot(async (root) => {
+		const asyncRoot = join(root, "async-subagent-runs");
+		writeRun(asyncRoot, "background", "/sessions/current.jsonl", "running");
+		mkdirSync(join(asyncRoot, ".active-runs"), { recursive: true });
+		writeFileSync(join(asyncRoot, ".active-runs", "background"), "");
+
+		await withEnvironment({ PI_SUBAGENT_CHILD: undefined, TMUX_PANE: "%42" }, async () => {
+			const { pi, run, tmuxCommands } = extensionPi("test");
+			piTmuxAgentInfo(pi, () => ({ waitingTools: new Set(), warnings: [] }));
+			await run("session_start");
+			assert.equal(tmuxCommands.filter((command) => command.at(-1) === "working").length > 0, true);
+
+			writeRun(asyncRoot, "background", "/sessions/current.jsonl", "complete");
+			await new Promise((resolve) => setTimeout(resolve, 1_100));
+			assert.equal(tmuxCommands.filter((command) => command.at(-1) === "idle").length > 0, true);
+			await run("session_shutdown", { reason: "quit" });
+		});
 	});
 });
 

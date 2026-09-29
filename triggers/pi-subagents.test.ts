@@ -73,10 +73,10 @@ test("publishes and removes background status as owned runs change", async () =>
 				registeredHandlers.set(event, list);
 			},
 		};
-		registerStatusTriggers(pi as never, contributions, () => new Set(), [piSubagentsTrigger]);
+		const context = { sessionManager: { getSessionFile: () => "/sessions/current.jsonl" } };
+		registerStatusTriggers(pi as never, contributions, context as never, () => new Set(), [piSubagentsTrigger]);
 		const sessionStart = registeredHandlers.get("session_start")?.[0];
 		const sessionShutdown = registeredHandlers.get("session_shutdown")?.[0];
-		const context = { sessionManager: { getSessionFile: () => "/sessions/current.jsonl" } };
 		await sessionStart?.({}, context);
 		assert.ok(calls.some((call) => call.action === "upsert" && call.source === "ext:pi-subagents" && call.id === "background-runs" && call.status === "working"));
 
@@ -96,7 +96,9 @@ test("registers core and protocol triggers when pi-subagents status data is abse
 		},
 		events: { on: () => () => undefined },
 	};
-	const dispose = registerStatusTriggers(pi as never, contributions);
+	const dispose = registerStatusTriggers(pi as never, contributions, {
+		sessionManager: { getSessionFile: () => "/sessions/current.jsonl" },
+	} as never);
 
 	assert.ok(registeredEvents.has("agent_start"));
 	assert.ok(registeredEvents.has("session_start"));
