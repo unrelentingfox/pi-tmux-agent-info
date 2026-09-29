@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentStatus } from "../status.ts";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export interface StatusContributions {
 	upsert(source: string, id: string, status: AgentStatus): void;
@@ -9,7 +10,11 @@ export interface StatusContributions {
 
 export interface StatusTrigger {
 	source: string;
-	register(pi: ExtensionAPI, contributions: StatusContributions): () => void;
+	register(
+		pi: ExtensionAPI,
+		contributions: StatusContributions,
+		context?: ExtensionContext,
+	): () => void;
 }
 
 export interface EventBus {

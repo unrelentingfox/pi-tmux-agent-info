@@ -18,6 +18,7 @@ test("registers every trigger and disposes in reverse order", () => {
 	const dispose = registerStatusTriggers(
 		{} as ExtensionAPI,
 		contributions,
+		{} as never,
 		() => new Set(),
 		[trigger("one"), trigger("two")],
 	);

@@ -41,8 +41,18 @@ The extension owns only the Pi process's host pane:
 
 It republishes a complete pane snapshot on startup, reload, new session,
 resume, and fork. It starts at `idle`, reports `done` after a completed run,
-and unsets all three options when Pi quits. Reload and session replacement do
-not clear the pane between extension generations.
+and unsets all three options when Pi quits. While the parent is idle, it reports
+`working` when pi-subagents has queued or running background work owned by that
+exact Pi session. It reads session-scoped `status.json` artifacts only for run
+IDs listed in pi-subagents' `.active-runs` marker directory, and checks again
+once per second.
+This integration depends on pi-subagents' private on-disk directory and status
+schema; it is not a supported public API and may need an update if that schema
+changes. Terminal records and markers without a matching active status are
+ignored. A dead process can leave both a marker and a `queued` or `running`
+status behind, so stale records may keep the status active until pi-subagents
+reconciles them. Reload and session replacement do not clear the pane between
+extension generations.
 
 Status icons are global tmux options. A renderer can use these values and
 provide its own fallbacks:

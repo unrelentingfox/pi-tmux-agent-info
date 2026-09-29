@@ -58,7 +58,7 @@ export default function piTmuxAgentInfo(
 		if (!isInteractiveParentSession(sessionMode)) return;
 		extensionOwners[OWNER_KEY] = owner;
 		publishing = true;
-		disposeTriggers ??= registerStatusTriggers(pi, contributions, () => waitingTools);
+		disposeTriggers ??= registerStatusTriggers(pi, contributions, ctx, () => waitingTools);
 		const config = loadConfig();
 		waitingTools = config.waitingTools;
 		for (const warning of config.warnings) ctx.ui.notify(`tmux-agent-info: ${warning}`, "warning");
