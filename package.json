@@ -28,6 +28,7 @@
     "status.ts",
     "triggers/index.ts",
     "triggers/pi.ts",
+    "triggers/pi-subagents.ts",
     "triggers/protocol.ts",
     "triggers/types.ts",
     "README.md",

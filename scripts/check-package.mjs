@@ -11,6 +11,7 @@ const expected = [
   "package.json",
   "status.ts",
   "triggers/index.ts",
+  "triggers/pi-subagents.ts",
   "triggers/pi.ts",
   "triggers/protocol.ts",
   "triggers/types.ts",
